@@ -66,20 +66,16 @@ def create_heatmap_bytes(
     with contextlib.suppress(KeyError, IndexError):
         df = df.drop(columns=df.columns[0], axis=1)
 
-    # Build author display names with pandas built-ins; prefer full name, fall back to initials
-    name_cols = ["First Name", "Middle Name", "Last Name"]
-    existing_name_cols = [c for c in name_cols if c in df.columns]
-    combined = df[existing_name_cols].fillna("").agg(" ".join, axis=1).str.strip()
-    initials = df["Initials"].fillna("") if "Initials" in df.columns else pd.Series([""] * len(df))
-    authors = combined.where(combined != "", initials).tolist()
+    # Build author display names (prefer full name, otherwise initials)
+    name_frame = df.reindex(columns=["First Name", "Middle Name", "Last Name"]).fillna("")
+    combined = name_frame.agg(" ".join, axis=1).str.strip()
+    initials = df.get("Initials", pd.Series("", index=df.index)).fillna("")
+    authors = combined.mask(combined == "", initials).tolist()
 
-    # roles are columns after the first four
+    # Roles are any columns after the first four; build numeric matrix in a vectorized way
     roles = list(df.columns[4:])
-
-    # vectorized boolean conversion for role columns, then scale to 0/100
     if roles:
-        df_roles = df.loc[:, roles].fillna(False).astype(bool)
-        arr = (df_roles.astype(int) * 100).to_numpy(dtype=float)
+        arr = (df.loc[:, roles].fillna(value=False).astype(bool).astype(int).to_numpy() * 100.0).astype(float)
     else:
         arr = np.zeros((len(df), 0), dtype=float)
     _validate_matrix_shape(arr, authors, roles)

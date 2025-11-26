@@ -6,7 +6,7 @@ formats and error handling.
 
 from typing import Final
 
-from app import image_exporter as exporter
+from utils import image_exporter as exporter
 
 SVG_START: Final = "<svg"
 XML_DECL: Final = "<?xml"

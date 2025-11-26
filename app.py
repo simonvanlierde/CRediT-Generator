@@ -15,7 +15,8 @@ import contextlib
 import dash_daq as daq
 from app.image_exporter import create_heatmap_bytes, create_heatmap_download
 
-import pprint
+from utils.image_exporter import create_heatmap_bytes, create_heatmap_download
+
 pp = pprint.PrettyPrinter(depth=4)
 
 DEFAULT_HEATMAP_COLOR = "#3d94d1"

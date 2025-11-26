@@ -11,9 +11,14 @@ import json
 from lxml import etree
 import base64
 from io import BytesIO, StringIO
+import contextlib
+import dash_daq as daq
+from app.image_exporter import create_heatmap_bytes, create_heatmap_download
 
 import pprint
 pp = pprint.PrettyPrinter(depth=4)
+
+DEFAULT_HEATMAP_COLOR = "#3d94d1"
 
 contributor_roles = {
     'Conceptualization':['Ideas; formulation or evolution of overarching research goals and aims.', 'https://credit.niso.org/contributor-roles/conceptualization/'],
@@ -444,6 +449,91 @@ app.layout = html.Div([
             )
         ]),
 
+        # Heatmap preview and download
+        dbc.Card(
+            dbc.CardBody(
+                [
+                    html.H4("Heatmap preview", style={"font-family": "Arial", "color": "rgb(61, 148, 209)"}),
+                    html.Div(
+                        [
+                            html.Div(
+                                [
+                                    dbc.Label(
+                                        ["Select a ", html.Span("color", id="color")], style={"margin": 0}
+                                    ),
+                                    dbc.Input(
+                                        type="color",
+                                        id="color-picker",
+                                        value=DEFAULT_HEATMAP_COLOR,
+                                        style={
+                                            "width": "3.5rem",
+                                            "height": "1.5rem",
+                                            "padding": "0",
+                                            "border": "none",
+                                        },
+                                    ),
+                                ],
+                                style={"display": "flex", "align-items": "center", "gap": ".5rem"},
+                            ),
+                            html.Div(
+                                [
+                                    html.Span(
+                                        "Transpose axes", style={"lineHeight": "1", "display": "inline-block"}
+                                    ),
+                                    dbc.Checkbox(
+                                        id="transpose-check", value=False, style={"margin-left": "0.5rem"}
+                                    ),
+                                ],
+                                style={"display": "flex", "align-items": "center", "margin-left": "1.25rem"},
+                            ),
+                        ],
+                        style={
+                            "display": "flex",
+                            "align-items": "center",
+                            "gap": ".5rem",
+                            "margin-bottom": ".5rem",
+                        },
+                    ),
+                    html.Div(
+                        html.Img(
+                            id="heatmap-preview",
+                            src="",
+                            style={
+                                "maxWidth": "100%",
+                                "height": "auto",
+                                "border": "1px solid #e6e6e6",
+                                "margin-top": ".5rem",
+                            },
+                        )
+                    ),
+                    html.Div(
+                        [
+                            dbc.Button(
+                                "Download PNG",
+                                id="download-png-btn",
+                                n_clicks=0,
+                                disabled=True,
+                                className="ok_button",
+                                style={"margin-right": ".5rem"},
+                            ),
+                            dbc.Button(
+                                "Download PDF",
+                                id="download-pdf-btn",
+                                n_clicks=0,
+                                disabled=True,
+                                className="ok_button",
+                                style={"margin-right": ".5rem"},
+                            ),
+                            dcc.Download(id="download-png"),
+                            dcc.Download(id="download-pdf"),
+                        ],
+                        style={"margin-top": ".5rem"},
+                    ),
+                ]
+            ),
+            style={"margin-bottom": "1rem"},
+        ),
+
         html.Hr(style={'color':'black', 'opacity':1}),
         html.Div(children=[
             html.H6("Supported by the project National Institute for Research of Metabolic and Cardiovascular Diseases (Programme EXCELES, ID Project No. LX22NPO5104) – Funded by the European Union – Next Generation EU."),
@@ -638,7 +728,9 @@ def update_query_output_filename(filename):
      Output('contributions-reversed', 'value'),
      Output('contributions-reversed-short', 'value'),
      Output('generate-jats4r', 'disabled'),
-     Output('generate-json', 'disabled')],
+     Output('generate-json', 'disabled'),
+     Output('download-png-btn', 'disabled'),
+     Output('download-pdf-btn', 'disabled')],
     Input('generate-button', 'n_clicks'),
     Input('table-data', 'data')
 )
@@ -675,9 +767,11 @@ def update_output(generate_btn, data):
         manuscript2 = manuscript2[:-2]
         manuscript3 = manuscript3[:-2]
 
-        return manuscript, manuscript2, manuscript3, False, False
+        # enable JATS4R / JSON and image downloads when generated
+        return manuscript, manuscript2, manuscript3, False, False, False, False
 
-    return "", "", "", True, True
+    # keep downloads disabled until the user presses Generate
+    return "", "", "", True, True, True, True
 
 
 @app.callback(
@@ -788,6 +882,114 @@ def update_output(data, json_btn):
         base64_json = base64.b64encode(file_stream.read()).decode('utf-8')
         
         return dict(content=base64_json, filename="credit_result.json", base64=True)
+
+
+@app.callback(
+    Output("heatmap-preview", "src"),
+    Input("generate-button", "n_clicks"),
+    Input("table-data", "data"),
+    Input("color-picker", "value"),
+    Input("transpose-check", "value"),
+)
+def update_heatmap_preview(
+    generate_btn: int | None,
+    table_data: list[dict[str, str | bool]] | None,
+    color_value: dict[str, str],
+    transpose_value: bool | None, # noqa: FBT001 # Positional boolean argument required for callback functionality in Dash
+) -> str:
+    """Update the heatmap preview based on the table data and selected color."""
+    if not generate_btn or generate_btn <= 0:
+        raise PreventUpdate
+    if not table_data:
+        raise PreventUpdate
+    transpose = bool(transpose_value)
+    if isinstance(color_value, dict):
+        color_hex = color_value.get("hex", DEFAULT_HEATMAP_COLOR)
+    else:
+        color_hex = color_value or DEFAULT_HEATMAP_COLOR
+    png_bytes = create_heatmap_bytes(
+        table_data,
+        tile_color=color_hex,
+        save_format="png",
+        transpose=transpose,
+    )
+    encoded = base64.b64encode(png_bytes).decode("ascii")
+    return f"data:image/png;base64,{encoded}"
+
+
+@app.callback(
+    Output("download-png", "data"),
+    Input("download-png-btn", "n_clicks"),
+    State("table-data", "data"),
+    State("color-picker", "value"),
+    State("transpose-check", "value"),
+    prevent_initial_call=True,
+)
+def download_png(
+    table_data: list[dict[str, str | bool]] | None,
+    color: dict[str, str],
+    transpose_value: bool | None,  # noqa: FBT001 # Positional boolean argument required for callback functionality in Dash
+) -> dict[str, str | bool]:
+    """Download the heatmap as a PNG file."""
+    if not table_data:
+        raise PreventUpdate
+    return create_heatmap_download(
+        table_data,
+        filename="credit_heatmap.png",
+        tile_color=color.get("hex", DEFAULT_HEATMAP_COLOR),
+        transpose=bool(transpose_value),
+        save_format="png",
+    )
+
+
+@app.callback(
+    Output("download-pdf", "data"),
+    Input("download-pdf-btn", "n_clicks"),
+    State("table-data", "data"),
+    State("color-picker", "value"),
+    State("transpose-check", "value"),
+    prevent_initial_call=True,
+)
+def download_pdf(
+    table_data: list[dict[str, str | bool]] | None,
+    color: dict[str, str],
+    transpose_value: bool | None,  # noqa: FBT001 # Positional boolean argument required for callback functionality in Dash
+) -> dict[str, str | bool]:
+    """Download the heatmap as an SVG file."""
+    if not table_data:
+        raise PreventUpdate
+    return create_heatmap_download(
+        table_data,
+        filename="credit_heatmap.pdf",
+        tile_color=color.get("hex", DEFAULT_HEATMAP_COLOR),
+        transpose=bool(transpose_value),
+        save_format="pdf",
+    )
+
+
+@app.callback(
+    Output("download-svg", "data"),
+    Input("download-svg-btn", "n_clicks"),
+    State("table-data", "data"),
+    State("color-picker", "value"),
+    State("transpose-check", "value"),
+    prevent_initial_call=True,
+)
+def download_svg(
+    table_data: list[dict[str, str | bool]] | None,
+    color: dict[str, str],
+    transpose_value: bool | None,  # noqa: FBT001 # Positional boolean argument required for callback functionality in Dash
+) -> dict[str, str | bool]:
+    """Download the heatmap as an SVG file."""
+    if not table_data:
+        raise PreventUpdate
+    return create_heatmap_download(
+        table_data,
+        filename="credit_heatmap.svg",
+        tile_color=color.get("hex", DEFAULT_HEATMAP_COLOR),
+        transpose=bool(transpose_value),
+        save_format="svg",
+    )
 
 
 def find_duplicates(arr):

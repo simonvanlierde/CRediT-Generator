@@ -892,7 +892,7 @@ def update_output(data, json_btn):
 def update_heatmap_preview(
     generate_btn: int | None,
     table_data: list[dict[str, str | bool]] | None,
-    color_value: dict[str, str],
+    color: str,
     transpose_value: bool | None, # noqa: FBT001 # Positional boolean argument required for callback functionality in Dash
 ) -> str:
     """Update the heatmap preview based on the table data and selected color."""
@@ -901,13 +901,10 @@ def update_heatmap_preview(
     if not table_data:
         raise PreventUpdate
     transpose = bool(transpose_value)
-    if isinstance(color_value, dict):
-        color_hex = color_value.get("hex", DEFAULT_HEATMAP_COLOR)
-    else:
-        color_hex = color_value or DEFAULT_HEATMAP_COLOR
+
     png_bytes = create_heatmap_bytes(
         table_data,
-        tile_color=color_hex,
+        tile_color=color,
         save_format="png",
         transpose=transpose,
     )
@@ -924,8 +921,9 @@ def update_heatmap_preview(
     prevent_initial_call=True,
 )
 def download_png(
+    _n_clicks: int,
     table_data: list[dict[str, str | bool]] | None,
-    color: dict[str, str],
+    color: str,
     transpose_value: bool | None,  # noqa: FBT001 # Positional boolean argument required for callback functionality in Dash
 ) -> dict[str, str | bool]:
     """Download the heatmap as a PNG file."""
@@ -934,7 +932,7 @@ def download_png(
     return create_heatmap_download(
         table_data,
         filename="credit_heatmap.png",
-        tile_color=color.get("hex", DEFAULT_HEATMAP_COLOR),
+        tile_color=color,
         transpose=bool(transpose_value),
         save_format="png",
     )
@@ -949,8 +947,9 @@ def download_png(
     prevent_initial_call=True,
 )
 def download_pdf(
+     _n_clicks: int,
     table_data: list[dict[str, str | bool]] | None,
-    color: dict[str, str],
+    color: str,
     transpose_value: bool | None,  # noqa: FBT001 # Positional boolean argument required for callback functionality in Dash
 ) -> dict[str, str | bool]:
     """Download the heatmap as an SVG file."""
@@ -959,7 +958,7 @@ def download_pdf(
     return create_heatmap_download(
         table_data,
         filename="credit_heatmap.pdf",
-        tile_color=color.get("hex", DEFAULT_HEATMAP_COLOR),
+        tile_color=color,
         transpose=bool(transpose_value),
         save_format="pdf",
     )
@@ -974,8 +973,9 @@ def download_pdf(
     prevent_initial_call=True,
 )
 def download_svg(
+     _n_clicks: int,
     table_data: list[dict[str, str | bool]] | None,
-    color: dict[str, str],
+    color: str,
     transpose_value: bool | None,  # noqa: FBT001 # Positional boolean argument required for callback functionality in Dash
 ) -> dict[str, str | bool]:
     """Download the heatmap as an SVG file."""
@@ -984,7 +984,7 @@ def download_svg(
     return create_heatmap_download(
         table_data,
         filename="credit_heatmap.svg",
-        tile_color=color.get("hex", DEFAULT_HEATMAP_COLOR),
+        tile_color=color,
         transpose=bool(transpose_value),
         save_format="svg",
     )

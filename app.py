@@ -588,8 +588,7 @@ def update_output(read_list, add_row, input_values, checkbox_values, upload_cont
        
         cleaned_authors = re.sub(r'[^a-zA-Z,\s]', '', authors)
         cleaned_authors2 = re.sub(r',+', ',', cleaned_authors)
-        if cleaned_authors2.endswith(','):        
-            cleaned_authors2 = cleaned_authors2[:-1]
+        cleaned_authors2 = cleaned_authors2.removesuffix(",")
         
         author_list = [author.strip() for author in cleaned_authors2.split(',')]
 
@@ -642,7 +641,7 @@ def update_output(read_list, add_row, input_values, checkbox_values, upload_cont
     
     if trigger == 'add-row.n_clicks':
         df = pd.DataFrame(data)
-        new_row = {col: '' for col in df.columns}
+        new_row = dict.fromkeys(df.columns, "")
         new_row['Role'] = len(df) + 1
         new_row = {k: [v] for k, v in new_row.items()}
         df_new_row = pd.DataFrame(new_row)
@@ -997,4 +996,4 @@ def find_duplicates(arr):
     return [item for item, count in collections.Counter(sorted_arr).items() if count > 1]
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run(debug=True)

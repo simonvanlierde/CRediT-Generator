@@ -1,6 +1,5 @@
 # web
 dash==3.3.0
-dash_daq==0.6.0
 dash-bootstrap-components==2.0.4
 
 # data visualization

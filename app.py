@@ -1,19 +1,17 @@
-import dash
-from dash import dcc, html, Input, Output, State, callback_context, dash_table, html
-from dash.exceptions import PreventUpdate
-import re
-import pandas as pd
-import numpy as np
-import collections
-import dash_bootstrap_components as dbc
-import json
-
-from lxml import etree
+"""Main application file for CRediT Generator app."""
 import base64
+import collections
+import pprint
+import re
 from io import BytesIO, StringIO
-import contextlib
-import dash_daq as daq
-from app.image_exporter import create_heatmap_bytes, create_heatmap_download
+
+import dash
+import dash_bootstrap_components as dbc
+import numpy as np
+import pandas as pd
+from dash import Input, Output, State, callback_context, dash_table, dcc, html
+from dash.exceptions import PreventUpdate
+from lxml import etree
 
 from utils.image_exporter import create_heatmap_bytes, create_heatmap_download
 
